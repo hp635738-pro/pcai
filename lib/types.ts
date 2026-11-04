@@ -14,8 +14,3 @@ export interface Chat {
   createdAt: number;
   updatedAt: number;
 }
-
-export interface PromptComposerValue {
-  text: string;
-  attachments: string[];
-}

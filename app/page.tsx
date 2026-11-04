@@ -1,5 +1,5 @@
-import { ChatView } from "@/components/chat/chat-view";
+import { PcaiApp } from "@/components/chat/pcai-app";
 
 export default function Home() {
-  return <ChatView />;
+  return <PcaiApp />;
 }
