@@ -1,20 +1,32 @@
 "use client";
 
 import * as React from "react";
+import { SparklesIcon } from "lucide-react";
 
+import { AppSidebar } from "@/components/chat/app-sidebar";
 import { ChatComposer } from "@/components/chat/chat-composer";
-import { MessageList } from "@/components/chat/message-list";
-import { MobileSidebar, Sidebar } from "@/components/chat/sidebar";
+import { ChatThread } from "@/components/chat/chat-thread";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  ConversationEmptyState,
+} from "@/components/ai-elements/conversation";
+import { Button } from "@/components/ui/button";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 import type { ComposerSubmit } from "@/components/ui/prompt-composer";
 import { suggestions } from "@/lib/data";
 import type { Chat, Message } from "@/lib/types";
 
 /**
- * Application shell: owns chat state and composes the sidebar, the message
- * list and the 21st.dev Prompt Composer. No backend — messages are kept in
- * memory and nothing is generated.
+ * Shell: owns chat state and composes
+ *   - shadcn/ui sidebar-07 sidebar  (components/chat/app-sidebar.tsx)
+ *   - Vercel ai-elements thread     (components/chat/chat-thread.tsx)
+ *   - 21st.dev prompt composer      (components/chat/chat-composer.tsx)
+ * No backend: messages live in memory.
  */
 export function PcaiApp() {
   const [chats, setChats] = React.useState<Chat[]>([]);
@@ -25,11 +37,6 @@ export function PcaiApp() {
 
   const activeChat = chats.find((c) => c.id === activeChatId) ?? null;
   const messages = activeChat?.messages ?? [];
-
-  const scrollRef = React.useRef<HTMLDivElement>(null);
-  React.useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages.length, activeChatId]);
 
   const handleSubmit = ({ prompt }: ComposerSubmit) => {
     const message: Message = {
@@ -56,7 +63,7 @@ export function PcaiApp() {
 
     const chat: Chat = {
       id: crypto.randomUUID(),
-      title: prompt.length > 38 ? `${prompt.slice(0, 38)}…` : prompt,
+      title: prompt.length > 34 ? `${prompt.slice(0, 34)}…` : prompt,
       messages: [message],
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -76,53 +83,84 @@ export function PcaiApp() {
     setComposerKey((k) => k + 1);
   };
 
-  const sidebarProps = {
-    chats,
-    activeChatId,
-    onSelectChat: setActiveChatId,
-    onNewChat: newChat,
-    onDeleteChat: (id: string) => {
-      setChats((prev) => prev.filter((chat) => chat.id !== id));
-      setActiveChatId((current) => (current === id ? null : current));
-    },
-    onOpenSettings: () => setSettingsOpen(true),
-  };
-
   return (
     <>
-      <div className="flex h-dvh w-full overflow-hidden">
-        <Sidebar {...sidebarProps} />
+      <SidebarProvider>
+        <AppSidebar
+          chats={chats}
+          activeChatId={activeChatId}
+          onSelectChat={setActiveChatId}
+          onNewChat={newChat}
+          onDeleteChat={(id) => {
+            setChats((prev) => prev.filter((chat) => chat.id !== id));
+            setActiveChatId((current) => (current === id ? null : current));
+          }}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
 
-        <main className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-            <MobileSidebar {...sidebarProps} />
+        <SidebarInset className="flex h-dvh flex-col overflow-hidden">
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator
+              orientation="vertical"
+              className="mr-1 data-[orientation=vertical]:h-4"
+            />
             <p className="truncate text-sm font-medium">
               {activeChat?.title ?? "New chat"}
             </p>
           </header>
 
-          <ScrollArea
-            className="min-h-0 flex-1"
-            ref={scrollRef as React.Ref<HTMLDivElement>}
-          >
-            <MessageList
-              messages={messages}
-              suggestions={suggestions}
-              onSuggestion={pickSuggestion}
-            />
-          </ScrollArea>
+          <div className="flex min-h-0 flex-1 flex-col">
+            {messages.length === 0 ? (
+              <div className="flex min-h-0 flex-1 items-center justify-center px-4">
+                <div className="w-full max-w-2xl">
+                  <ConversationEmptyState>
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="text-muted-foreground">
+                        <SparklesIcon className="size-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-medium">
+                          How can I help you today?
+                        </h3>
+                        <p className="text-muted-foreground text-sm">
+                          PCAI runs locally. Pick a suggestion or type below.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-2 grid w-full gap-2 sm:grid-cols-2">
+                      {suggestions.map((prompt) => (
+                        <Button
+                          key={prompt}
+                          variant="outline"
+                          onClick={() => pickSuggestion(prompt)}
+                          className="h-auto justify-start px-3 py-2.5 text-left text-xs font-normal whitespace-normal"
+                        >
+                          {prompt}
+                        </Button>
+                      ))}
+                    </div>
+                  </ConversationEmptyState>
+                </div>
+              </div>
+            ) : (
+              <div className="min-h-0 flex-1">
+                <ChatThread messages={messages} />
+              </div>
+            )}
 
-          <div className="shrink-0 px-4 pb-4">
-            <div className="mx-auto w-full max-w-2xl">
-              <ChatComposer
-                key={composerKey}
-                onSubmit={handleSubmit}
-                initialValue={draft ?? undefined}
-              />
+            <div className="shrink-0 border-t px-4 py-3">
+              <div className="mx-auto w-full max-w-2xl">
+                <ChatComposer
+                  key={composerKey}
+                  onSubmit={handleSubmit}
+                  initialValue={draft ?? undefined}
+                />
+              </div>
             </div>
           </div>
-        </main>
-      </div>
+        </SidebarInset>
+      </SidebarProvider>
 
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </>
